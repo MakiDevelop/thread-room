@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MakiDevelop/thread-room/schemas/message.schema.json",
+  "title": "TRP Message",
+  "type": "object",
+  "required": ["trp", "id", "ts", "room_id", "speaker", "kind", "type", "text"],
+  "properties": {
+    "trp": { "type": "string", "const": "0.1" },
+    "id": { "type": "string", "minLength": 1 },
+    "ts": { "type": "string", "minLength": 1 },
+    "room_id": { "type": "string", "minLength": 1 },
+    "speaker": { "type": "string", "minLength": 1 },
+    "kind": { "type": "string", "enum": ["human", "agent", "system"] },
+    "type": {
+      "type": "string",
+      "enum": [
+        "utterance",
+        "system",
+        "ownership",
+        "decision",
+        "dissent",
+        "summary",
+        "tool_note",
+        "correction",
+        "promote"
+      ]
+    },
+    "text": { "type": "string" },
+    "mentions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "reply_to": { "type": ["string", "null"] },
+    "attachments": { "type": "array" },
+    "visibility": {
+      "type": "string",
+      "enum": ["floor", "desk", "promoted"]
+    },
+    "meta": { "type": "object" }
+  },
+  "additionalProperties": true
+}

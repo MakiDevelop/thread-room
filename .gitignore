@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Thread Room meetings (local)
+meetings/
+.runtime/
+
+# Secrets & private desk data — never commit real sessions
+**/desks/**/traces/
+**/desks/**/side-thread.jsonl
+**/.runtime/
+*.pem
+.env
+.env.*
+
+# Optional local agent registry with secrets
+agents.local.yaml

@@ -1,0 +1,23 @@
+trp: "0.1"
+kind: room
+id: example-meeting
+title: "Example Thread Room"
+created_at: "2026-08-05T00:00:00+08:00"
+cwd: "."
+policy:
+  speak: mention_only
+  floor_output: conclusion_only
+  max_floor_chars: 4000
+  max_floor_messages_per_turn: 1
+  max_context_messages: 80
+  allow_agent_mention: false
+  write_gate: ownership_audit
+speakers:
+  - id: human
+    kind: human
+    display_name: Human
+  - id: mock
+    kind: agent
+    display_name: Mock Agent
+    adapter: mock
+    enabled: true

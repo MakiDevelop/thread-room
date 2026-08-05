@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from thread_room.models import Message, RoomConfig
+from thread_room.ownership import format_ownership_block, project_state
 
 
 def render_floor_chat(messages: list[Message], *, limit: int | None = None) -> str:
@@ -28,15 +29,31 @@ def build_agent_prompt(
     display_name: str,
     trigger_text: str,
     floor_messages: list[Message],
+    ownership_block: str | None = None,
+    phase: str | None = None,
+    ratified_paths: list[str] | None = None,
 ) -> str:
     pol = room.policy
+    ost = project_state(floor_messages, initial_phase=pol.phase)
+    phase_s = phase or ost.phase
+    own_block = ownership_block
+    if own_block is None:
+        own_block = format_ownership_block(ost)
+    paths = ratified_paths if ratified_paths is not None else ost.paths_for(speaker_id)
+    paths_s = ", ".join(f"`{p}`" for p in paths) if paths else "(none ratified for you)"
     thread = render_floor_chat(floor_messages, limit=pol.max_context_messages)
     return f"""# Thread Room — {room.title}
 
 You are **{display_name}** (id={speaker_id}).
 Room id: {room.id}
-Phase: {pol.phase}
-Write gate (v0 audit only, not hard deny): {pol.write_gate}
+Phase: **{phase_s}**
+Write gate: **{pol.write_gate}** (ownership_audit = post-hoc detect only; does not hard-block writes)
+
+## Ratified ownership (all)
+{own_block}
+
+## Your ratified paths
+{paths_s}
 
 ## Output contract (mandatory)
 
@@ -48,10 +65,9 @@ Rules:
 - `conclusion` is the ONLY text that will be posted to the public floor.
 - Keep conclusion under {pol.max_floor_chars} characters.
 - Do not put chain-of-thought or tool logs in `conclusion`.
-- `files_claimed` lists paths you believe you edited (may be empty in discuss phase).
-- `mentions` is ignored unless the host enables agent-to-agent mentions.
+- `files_claimed` lists paths you edited (relative to room cwd); required honesty in write phase.
+- Phase **{phase_s}**: if discuss, prefer analysis only; if write, only edit your ratified paths.
 - If you cannot answer, still return JSON with a short conclusion stating that.
-- Phase is **{pol.phase}**: in discuss, prefer analysis only; do not modify files unless phase is write.
 
 ## Public thread (floor)
 
@@ -64,12 +80,15 @@ Rules:
 
 
 def export_markdown(room: RoomConfig, messages: list[Message]) -> str:
+    ost = project_state(messages, initial_phase=room.policy.phase)
     parts = [
         f"# {room.title}",
         "",
         f"- id: `{room.id}`",
         f"- created: {room.created_at}",
         f"- cwd: `{room.cwd}`",
+        f"- phase: `{ost.phase}`",
+        f"- write_gate: `{room.policy.write_gate}`",
         "",
         "## Participants",
         "",
@@ -77,6 +96,14 @@ def export_markdown(room: RoomConfig, messages: list[Message]) -> str:
     for s in room.speakers:
         flag = "" if s.enabled else " (disabled)"
         parts.append(f"- **{s.display_name}** (`{s.id}`, {s.kind}){flag}")
+    parts.extend(["", "## Ownership (ratified)", ""])
+    if ost.ratified_map:
+        parts.append("| Path | Owner |")
+        parts.append("|------|-------|")
+        for p, o in sorted(ost.ratified_map.items()):
+            parts.append(f"| `{p}` | {o} |")
+    else:
+        parts.append("_None ratified._")
     parts.extend(["", "## Chat", ""])
     for m in messages:
         if m.visibility == "desk":

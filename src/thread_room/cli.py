@@ -1,4 +1,4 @@
-"""CLI entrypoint — P0: new / open REPL / one-shot commands."""
+"""CLI entrypoint — new / open REPL / one-shot commands."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from thread_room import __version__
-from thread_room.models import make_message
+from thread_room.ownership import parse_assign_specs
 from thread_room.session import Session
 from thread_room.store import StoreError, create_meeting
 
@@ -39,6 +39,12 @@ def main(argv: list[str] | None = None) -> None:
             _cmd_close(rest)
         elif cmd == "status":
             _cmd_status(rest)
+        elif cmd == "ownership":
+            _cmd_ownership(rest)
+        elif cmd == "ratify":
+            _cmd_ratify(rest)
+        elif cmd == "phase":
+            _cmd_phase(rest)
         else:
             print(f"thread-room: unknown command {cmd!r}", file=sys.stderr)
             _print_help()
@@ -53,24 +59,26 @@ def _print_help() -> None:
         f"""thread-room {__version__} — multi-agent meetings on the filesystem
 
 Commands:
-  new    --title TITLE [--cwd DIR] [--dir PARENT] [--id ID]
-  open   [MEETING_DIR]          Interactive REPL (recommended single-writer)
-  say    -d MEETING_DIR TEXT    Append human utterance (and queue @mentions)
-  pump   -d MEETING_DIR [--once]
-  export -d MEETING_DIR [-o FILE]
-  close  -d MEETING_DIR
-  status -d MEETING_DIR
+  new         --title TITLE [--cwd DIR] [--dir PARENT] [--id ID] [--agent id:adapter]
+  open        [MEETING_DIR]          Interactive REPL (recommended single-writer)
+  say         -d MEETING_DIR TEXT
+  pump        -d MEETING_DIR [--once]
+  ownership   -d MEETING_DIR --assign owner:path[,path…] [--assign …] [--note TEXT]
+  ratify      -d MEETING_DIR [--id ASSIGNMENT_ID]
+  phase       -d MEETING_DIR discuss|write
+  export      -d MEETING_DIR [-o FILE]
+  close       -d MEETING_DIR
+  status      -d MEETING_DIR
 
-REPL (inside open):
-  say <text> | pump | pump once | export | status | thread | close | help | quit
+REPL:
+  say | pump | ownership owner:paths … | ratify | phase discuss|write
+  export | status | thread | close | quit
 
-Notes:
-  - Floor SSOT is thread.jsonl; agent traces under desks/<id>/traces/
-  - Missing conclusion → system event on floor (fail closed)
-  - Adapters: mock | codex (codex_cli). Example:
-      thread-room new --title T --agent mock:mock --agent codex:codex_cli
-  - discuss phase uses codex --sandbox read-only; write phase workspace-write
-  - THREAD_ROOM_CODEX_BIN / THREAD_ROOM_CODEX_TIMEOUT env overrides
+Ownership (P2):
+  Propose disjoint paths, ratify, then phase write.
+  write_gate=ownership_audit → post-hoc violations as system events (not hard deny).
+
+Adapters: mock | codex_cli
 """
     )
 
@@ -110,7 +118,6 @@ def _cmd_new(argv: list[str]) -> None:
 
 
 def _meeting_dir(argv: list[str]) -> tuple[Path, list[str]]:
-    """Parse -d/--dir MEETING and return (path, remaining)."""
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("-d", "--dir", dest="meeting")
     args, rest = p.parse_known_args(argv)
@@ -135,7 +142,44 @@ def _cmd_pump(argv: list[str]) -> None:
     sess = Session.open(path)
     produced = sess.pump(once=once)
     for m in produced:
-        print(f"{m.type}\t{m.speaker}\t{m.text[:120]}")
+        print(f"{m.type}\t{m.speaker}\t{m.text[:200]}")
+
+
+def _cmd_ownership(argv: list[str]) -> None:
+    p = argparse.ArgumentParser(prog="thread-room ownership")
+    p.add_argument("-d", "--dir", required=True, dest="meeting")
+    p.add_argument(
+        "--assign",
+        action="append",
+        required=True,
+        help="owner:path[,path…] (repeatable)",
+    )
+    p.add_argument("--note", default="")
+    args = p.parse_args(argv)
+    assignments = parse_assign_specs(args.assign)
+    sess = Session.open(Path(args.meeting))
+    msg = sess.propose_ownership(assignments, note=args.note)
+    aid = msg.meta.get("assignment_id")
+    print(f"ok ownership proposed assignment_id={aid}")
+
+
+def _cmd_ratify(argv: list[str]) -> None:
+    p = argparse.ArgumentParser(prog="thread-room ratify")
+    p.add_argument("-d", "--dir", required=True, dest="meeting")
+    p.add_argument("--id", dest="assignment_id", default=None)
+    args = p.parse_args(argv)
+    sess = Session.open(Path(args.meeting))
+    msg = sess.ratify_ownership(args.assignment_id)
+    print(f"ok ratified assignment_id={msg.meta.get('assignment_id')}")
+
+
+def _cmd_phase(argv: list[str]) -> None:
+    path, rest = _meeting_dir(argv)
+    if not rest or rest[0] not in ("discuss", "write"):
+        raise ValueError("usage: thread-room phase -d DIR discuss|write")
+    sess = Session.open(path)
+    msg = sess.set_phase(rest[0])
+    print(f"ok phase={msg.meta.get('phase')}")
 
 
 def _cmd_export(argv: list[str]) -> None:
@@ -145,8 +189,8 @@ def _cmd_export(argv: list[str]) -> None:
         i = rest.index("-o")
         out = Path(rest[i + 1])
     sess = Session.open(path)
-    p = sess.export(out)
-    print(p)
+    pth = sess.export(out)
+    print(pth)
 
 
 def _cmd_close(argv: list[str]) -> None:
@@ -170,12 +214,11 @@ def _cmd_status(argv: list[str]) -> None:
 def _cmd_open(argv: list[str]) -> None:
     meeting = Path(argv[0]) if argv else Path(".")
     if not (meeting / "room.yaml").is_file():
-        # allow opening parent if only one meeting? require explicit
         raise FileNotFoundError(f"not a meeting dir (no room.yaml): {meeting}")
     sess = Session.open(meeting)
     print(f"thread-room open: {meeting.resolve()}")
     print(sess.status_text())
-    print("Type 'help' for commands. Single-writer REPL — avoid concurrent CLI say/pump.")
+    print("Type 'help' for commands.")
     while True:
         try:
             line = input("room> ").strip()
@@ -196,8 +239,8 @@ def _cmd_open(argv: list[str]) -> None:
 def _repl_line(sess: Session, line: str) -> None:
     if line in {"help", "?"}:
         print(
-            "say <text> | pump | pump once | export [path] | status | thread | "
-            "close | quit"
+            "say <text> | pump | ownership owner:paths [owner:paths…] | ratify | "
+            "phase discuss|write | export | status | thread | close | quit"
         )
         return
     if line in {"quit", "exit", "q"}:
@@ -211,12 +254,12 @@ def _repl_line(sess: Session, line: str) -> None:
         print(render_floor_chat(sess.store.messages) or "(empty)")
         return
     if line == "pump" or line.startswith("pump "):
-        once = line.strip() == "pump once" or line.endswith(" --once")
+        once = "once" in line.split()
         produced = sess.pump(once=once)
         if not produced:
             print("(no pending)")
         for m in produced:
-            print(f"[{m.speaker}] {m.text}")
+            print(f"[{m.speaker}/{m.type}] {m.text}")
         return
     if line == "export" or line.startswith("export "):
         parts = shlex.split(line)
@@ -229,13 +272,28 @@ def _repl_line(sess: Session, line: str) -> None:
         p = sess.export()
         print(f"closed; export {p}")
         return
+    if line.startswith("ownership "):
+        specs = line.split()[1:]
+        assignments = parse_assign_specs(specs)
+        msg = sess.propose_ownership(assignments)
+        print(f"proposed assignment_id={msg.meta.get('assignment_id')}")
+        return
+    if line == "ratify" or line.startswith("ratify "):
+        parts = line.split()
+        aid = parts[1] if len(parts) > 1 else None
+        msg = sess.ratify_ownership(aid)
+        print(f"ratified {msg.meta.get('assignment_id')}")
+        return
+    if line.startswith("phase "):
+        ph = line.split(None, 1)[1].strip()
+        msg = sess.set_phase(ph)
+        print(f"phase={msg.meta.get('phase')}")
+        return
     if line.startswith("say "):
-        text = line[4:]
-        msg = sess.say(text)
+        msg = sess.say(line[4:])
         print(f"ok mentions={msg.mentions}")
         return
     if line.startswith("@"):
-        # shorthand: treat as say
         msg = sess.say(line)
         print(f"ok mentions={msg.mentions}")
         return

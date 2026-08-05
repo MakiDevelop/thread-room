@@ -3,7 +3,7 @@
 **Multi-agent + human meetings on the filesystem.**  
 One folder, one `thread.jsonl` (like a LINE group chat), pluggable CLI agents.
 
-> **Status:** P1 (`0.2.0`) — mock + **Codex** adapter (`read-only` in discuss).
+> **Status:** P2 (`0.3.0`) — ownership propose/ratify/phase + **ownership_audit**.
 
 ## Install
 
@@ -55,7 +55,18 @@ meeting-dir/
 | Writer | Prefer **one** `open` REPL; one-shot cmds also ok if not concurrent |
 | Adapters | `mock`, **`codex` / `codex_cli`** |
 | Codex sandbox | `discuss` → `--sandbox read-only`; `write` → `workspace-write` |
-| Write gate | `ownership_audit` named only; hard enforce not yet |
+| Write gate | **`ownership_audit`**: post-hoc system events; does **not** hard-block writes |
+
+### Ownership flow (P2)
+
+```bash
+thread-room ownership -d ./meetings/c1 \
+  --assign 'codex:src/foo.py,tests/' \
+  --assign 'claude:docs/'
+thread-room ratify -d ./meetings/c1
+thread-room phase -d ./meetings/c1 write
+# then @agents; if files_claimed / git dirty paths violate map → system ownership_audit
+```
 
 ### Codex meeting example
 
@@ -81,7 +92,7 @@ See [docs/TRP.md](docs/TRP.md). Room transcripts are **lossy by design** — not
 |-------|--------|
 | **P0** | ✅ mock, store, pump, export, fail-visible |
 | **P1** | ✅ Codex adapter (`read-only` discuss, schema + last-message) |
-| **P2** | ownership audit |
+| **P2** | ✅ ownership propose/ratify/phase + audit |
 | **P3** | tmux desks + promote |
 | **P4** | polish / PyPI |
 

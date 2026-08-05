@@ -1,3 +1,3 @@
 """Thread Room — multi-agent meetings on the filesystem."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

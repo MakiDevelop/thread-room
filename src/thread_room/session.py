@@ -8,6 +8,16 @@ from pathlib import Path
 from thread_room.adapters.base import TurnContext
 from thread_room.adapters.registry import get_adapter
 from thread_room.models import Message, RoomConfig, extract_mentions, make_message
+from thread_room.ownership import (
+    OwnershipState,
+    PathAssignment,
+    audit_paths,
+    build_ownership_meta,
+    find_overlaps,
+    format_ownership_block,
+    git_status_snapshot,
+    project_state,
+)
 from thread_room.parser import ParseError, parse_agent_output
 from thread_room.render import build_agent_prompt, export_markdown
 from thread_room.store import StoreError, ThreadStore
@@ -34,6 +44,130 @@ class Session:
         sess = cls(room=room, store=store)
         sess.pending = _rebuild_pending(room, store.messages)
         return sess
+
+    def ownership_state(self) -> OwnershipState:
+        return project_state(
+            self.store.messages, initial_phase=self.room.policy.phase
+        )
+
+    def propose_ownership(
+        self,
+        assignments: list[PathAssignment],
+        *,
+        note: str = "",
+        speaker: str | None = None,
+    ) -> Message:
+        overlaps = find_overlaps(assignments)
+        if overlaps:
+            raise StoreError("ownership overlap: " + "; ".join(overlaps))
+        st = self.ownership_state()
+        from thread_room.ownership import _norm, _paths_overlap
+
+        for a in assignments:
+            for path in a.paths:
+                existing = st.owner_for(path)
+                if existing and existing != a.owner:
+                    raise StoreError(
+                        f"path {path!r} already ratified to {existing!r}"
+                    )
+                for pref, own in st.ratified_map.items():
+                    if own == a.owner:
+                        continue
+                    if _paths_overlap(_norm(path), pref):
+                        raise StoreError(
+                            f"path {path!r} overlaps ratified {pref!r} ({own})"
+                        )
+
+        human = speaker or self.room.human_id()
+        meta = build_ownership_meta(assignments, consensus="pending", note=note)
+        lines = [
+            f"{a.owner}: {', '.join(a.paths)}" for a in assignments
+        ]
+        text = "Ownership proposed:\n" + "\n".join(f"- {ln}" for ln in lines)
+        if note:
+            text += f"\nNote: {note}"
+        msg = make_message(
+            self.room,
+            speaker=human,
+            kind="human",
+            type="ownership",
+            text=text,
+            meta=meta,
+        )
+        self.store.append(msg)
+        return msg
+
+    def ratify_ownership(
+        self, assignment_id: str | None = None, *, speaker: str | None = None
+    ) -> Message:
+        st = self.ownership_state()
+        if not st.bundles:
+            raise StoreError("no ownership proposals to ratify")
+        target = None
+        if assignment_id:
+            for b in st.bundles:
+                if b.assignment_id == assignment_id:
+                    target = b
+                    break
+            if target is None:
+                raise StoreError(f"unknown assignment_id: {assignment_id}")
+        else:
+            # latest pending, else latest any
+            pending = [b for b in st.bundles if b.consensus != "ratified"]
+            target = pending[-1] if pending else st.bundles[-1]
+        human = speaker or self.room.human_id()
+        # re-emit ownership as ratified + decision
+        meta = build_ownership_meta(
+            target.assignments,
+            consensus="ratified",
+            note=target.note,
+            assignment_id=target.assignment_id,
+        )
+        own_msg = make_message(
+            self.room,
+            speaker=human,
+            kind="human",
+            type="ownership",
+            text=f"Ownership ratified: {target.assignment_id}",
+            meta=meta,
+        )
+        self.store.append(own_msg)
+        dec = make_message(
+            self.room,
+            speaker=human,
+            kind="human",
+            type="decision",
+            text=f"Ratified ownership {target.assignment_id}",
+            meta={
+                "event": "ratify_ownership",
+                "assignment_id": target.assignment_id,
+            },
+        )
+        self.store.append(dec)
+        return dec
+
+    def set_phase(self, phase: str, *, speaker: str | None = None) -> Message:
+        if phase not in ("discuss", "write"):
+            raise StoreError("phase must be discuss|write")
+        if phase == "write":
+            st = self.ownership_state()
+            if not st.ratified_map and self.room.policy.write_gate != "off":
+                raise StoreError(
+                    "cannot enter write phase without ratified ownership "
+                    "(or set write_gate: off)"
+                )
+        human = speaker or self.room.human_id()
+        msg = make_message(
+            self.room,
+            speaker=human,
+            kind="human",
+            type="decision",
+            text=f"Phase → {phase}",
+            meta={"event": "phase", "phase": phase},
+        )
+        self.store.append(msg)
+        return msg
+
     def say(self, text: str, *, speaker: str | None = None) -> Message:
         human = speaker or self.room.human_id()
         smap = self.room.speaker_map()
@@ -118,6 +252,8 @@ class Session:
             return [sys_msg]
 
         pol = self.room.policy
+        ost = self.ownership_state()
+        phase = ost.phase
         floor = self.store.recent_floor(pol.max_context_messages)
         prompt = build_agent_prompt(
             self.room,
@@ -125,6 +261,9 @@ class Session:
             display_name=sp.display_name,
             trigger_text=turn.trigger_text,
             floor_messages=floor,
+            ownership_block=format_ownership_block(ost),
+            phase=phase,
+            ratified_paths=ost.paths_for(sp.id),
         )
         cwd = Path(self.room.cwd)
         if not cwd.is_dir():
@@ -137,16 +276,22 @@ class Session:
 
         # Codex timeout default 900s; mock ignores
         timeout = 900 if (sp.adapter or "").startswith("codex") else 120
+        before_git = (
+            git_status_snapshot(cwd)
+            if pol.write_gate == "ownership_audit" and phase == "write"
+            else set()
+        )
         ctx = TurnContext(
             speaker_id=sp.id,
             display_name=sp.display_name,
             prompt=prompt,
             cwd=cwd,
             room_id=self.room.id,
-            phase=pol.phase,
+            phase=phase,
             max_floor_chars=pol.max_floor_chars,
             timeout_sec=timeout,
             work_dir=traces,
+            ratified_paths=ost.paths_for(sp.id),
         )
 
         result = adapter.run(ctx)
@@ -231,10 +376,43 @@ class Session:
                 "duration_ms": result.duration_ms,
                 "raw_format": parsed.raw_format,
                 "files_claimed": parsed.files_claimed,
+                "phase": phase,
             },
         )
         self.store.append(utt)
         out = [utt]
+
+        # ownership_audit: post-hoc path check (does NOT block writes)
+        if pol.write_gate == "ownership_audit" and phase == "write":
+            after = git_status_snapshot(cwd)
+            changed = sorted(after - before_git) if before_git or after else []
+            claimed = list(parsed.files_claimed or [])
+            paths_to_check = list(dict.fromkeys(claimed + changed))
+            if paths_to_check:
+                violations = audit_paths(
+                    ost, speaker=sp.id, paths=paths_to_check
+                )
+                if violations:
+                    sys_msg = make_message(
+                        self.room,
+                        speaker="system",
+                        kind="system",
+                        type="system",
+                        text=(
+                            f"ownership_audit violation by @{sp.id}: "
+                            + "; ".join(violations)
+                        ),
+                        meta={
+                            "event": "ownership_audit",
+                            "target": sp.id,
+                            "trigger_message_id": turn.trigger_message_id,
+                            "violations": violations,
+                            "paths_checked": paths_to_check,
+                            "note": "audit only — writes were not blocked",
+                        },
+                    )
+                    self.store.append(sys_msg)
+                    out.append(sys_msg)
 
         for m in new_mentions:
             self.pending.append(
@@ -281,9 +459,15 @@ class Session:
         n = len(self.store.messages)
         pend = ", ".join(p.target for p in self.pending) or "(none)"
         closed = "yes" if self.store.closed else "no"
+        ost = self.ownership_state()
+        own = (
+            ", ".join(f"{p}→{o}" for p, o in sorted(ost.ratified_map.items()))
+            or "(none)"
+        )
         return (
             f"room={self.room.id} messages={n} closed={closed} "
-            f"pending=[{pend}] phase={self.room.policy.phase}"
+            f"pending=[{pend}] phase={ost.phase} "
+            f"write_gate={self.room.policy.write_gate} ownership=[{own}]"
         )
 
 

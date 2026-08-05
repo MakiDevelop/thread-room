@@ -1,70 +1,75 @@
 # Thread Room
 
 **Multi-agent + human meetings on the filesystem.**  
-One folder, one `thread.jsonl` (like a LINE group chat), pluggable CLI agents, optional per-agent terminal desks.
+One folder, one `thread.jsonl` (like a LINE group chat), pluggable CLI agents.
 
-> Status: **early scaffold** — public repo for design & implementation.  
-> Protocol draft: [docs/TRP.md](docs/TRP.md)  
-> Design origin: Maki lab council session `2026-08-05-thread-room-design-review`
+> **Status:** P0 working (`0.1.0`) — mock agent, REPL, export. Real CLI adapters next.
 
-## What it is
-
-| Surface | Role |
-|---------|------|
-| **Floor** | Public `thread.jsonl` — shared meeting timeline |
-| **Desk** | Optional per-agent terminal — side chat & full traces stay here |
-| **Host** | CLI (`thread-room`) — human runs the meeting |
-
-**Defaults (Chair preferences):**
-
-- Human UI: **CLI**
-- Speak policy: **mention_only**
-- Floor output: **conclusion only** (reasoning stays on desk)
-- Write code: **agree ownership first**, then edit disjoint paths (no file locks)
-- No always-on daemon
-
-## Not File-I/O RFP
-
-Classic multi-CLI “briefing → answer files” is a **batch tender**.  
-Thread Room is a **round-table + side desks** with a durable chat log.
-
-## Quick mental model
-
-```text
-meeting-2026-08-05-foo/
-  room.yaml          # who is in the room, policy
-  thread.jsonl       # public SSOT (group chat)
-  desks/<agent>/     # traces / optional side-thread
-  export.md          # human-readable export
-```
-
-## Install (planned)
+## Install
 
 ```bash
-# not published yet — local editable install once package exists
-pip install -e .
-thread-room --help
+cd thread-room
+python3 -m pip install -e ".[dev]"
+thread-room --version
 ```
 
-## Roadmap (from design review)
+## Quick start
+
+```bash
+# create a meeting (prints path)
+thread-room new --title "Demo" --cwd . --dir ./meetings --id demo-1
+
+# one-shot flow
+thread-room say -d ./meetings/demo-1 "Hello @mock — introduce yourself"
+thread-room pump -d ./meetings/demo-1
+thread-room export -d ./meetings/demo-1
+thread-room close -d ./meetings/demo-1
+
+# or interactive single-writer REPL (recommended)
+thread-room open ./meetings/demo-1
+# room> say Hello @mock
+# room> pump
+# room> thread
+# room> export
+# room> close
+```
+
+## Layout
+
+```text
+meeting-dir/
+  room.yaml
+  thread.jsonl          # public floor (SSOT)
+  export.md
+  desks/<agent>/traces/ # full prompt+stdout (private; gitignored pattern)
+```
+
+## P0 behavior (council-reviewed)
+
+| Feature | Behavior |
+|---------|----------|
+| Human UI | CLI |
+| Speak | `@mention` queues agent turns |
+| Floor output | **conclusion only** (JSON `{"conclusion":…}` or `:::conclusion`) |
+| Parse failure | **fail closed** → `system` event on floor (no last-N fallback) |
+| Writer | Prefer **one** `open` REPL; one-shot cmds also ok if not concurrent |
+| Adapters | `mock` only |
+| Write gate | named `ownership_audit` in config; hard enforce not in P0 |
+
+## Protocol
+
+See [docs/TRP.md](docs/TRP.md). Room transcripts are **lossy by design** — not a RED/compliance audit log.
+
+## Roadmap
 
 | Phase | Scope |
 |-------|--------|
-| **P0** | REPL host, mock agent, jsonl store, export, fail-visible |
-| **P1** | Real adapter (Codex first), conclusion contract |
-| **P2** | Ownership audit (honest name; hard enforce later) |
-| **P3** | `desks open` (tmux), promote |
-| **P4** | Spec freeze, docs polish |
-
-## Related
-
-- Does **not** replace offline council File I/O for RED/ratify audit trails.
-- Room transcripts are **lossy by design** (conclusions on floor; traces on desks). Do not use as a compliance log.
+| **P0** | ✅ mock, store, pump, export, fail-visible |
+| **P1** | Codex adapter (read-only discuss), real conclusion contract |
+| **P2** | ownership audit |
+| **P3** | tmux desks + promote |
+| **P4** | polish / PyPI |
 
 ## License
 
-[MIT](LICENSE) — see LICENSE file.
-
-## Contributing
-
-Issues and design notes welcome once P0 lands. Breaking changes expected before `0.1.0`.
+MIT — see [LICENSE](LICENSE).

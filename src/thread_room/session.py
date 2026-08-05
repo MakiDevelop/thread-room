@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from thread_room.adapters.base import TurnContext
-from thread_room.adapters.mock import get_adapter
+from thread_room.adapters.registry import get_adapter
 from thread_room.models import Message, RoomConfig, extract_mentions, make_message
 from thread_room.parser import ParseError, parse_agent_output
 from thread_room.render import build_agent_prompt, export_markdown
@@ -130,6 +130,13 @@ class Session:
         if not cwd.is_dir():
             cwd = self.store.meeting_dir
 
+        # save full prompt+stdout under desks
+        desk = self.store.meeting_dir / "desks" / sp.id
+        traces = desk / "traces"
+        traces.mkdir(parents=True, exist_ok=True)
+
+        # Codex timeout default 900s; mock ignores
+        timeout = 900 if (sp.adapter or "").startswith("codex") else 120
         ctx = TurnContext(
             speaker_id=sp.id,
             display_name=sp.display_name,
@@ -138,12 +145,9 @@ class Session:
             room_id=self.room.id,
             phase=pol.phase,
             max_floor_chars=pol.max_floor_chars,
+            timeout_sec=timeout,
+            work_dir=traces,
         )
-
-        # save full prompt+stdout under desks
-        desk = self.store.meeting_dir / "desks" / sp.id
-        traces = desk / "traces"
-        traces.mkdir(parents=True, exist_ok=True)
 
         result = adapter.run(ctx)
         turn_id = turn.trigger_message_id

@@ -67,7 +67,10 @@ REPL (inside open):
 Notes:
   - Floor SSOT is thread.jsonl; agent traces under desks/<id>/traces/
   - Missing conclusion → system event on floor (fail closed)
-  - P0 adapters: mock only
+  - Adapters: mock | codex (codex_cli). Example:
+      thread-room new --title T --agent mock:mock --agent codex:codex_cli
+  - discuss phase uses codex --sandbox read-only; write phase workspace-write
+  - THREAD_ROOM_CODEX_BIN / THREAD_ROOM_CODEX_TIMEOUT env overrides
 """
     )
 

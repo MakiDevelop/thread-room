@@ -17,7 +17,8 @@ class TurnContext:
     phase: str
     max_floor_chars: int
     ratified_paths: list[str] = field(default_factory=list)
-    timeout_sec: int = 120
+    timeout_sec: int = 900
+    work_dir: Path | None = None  # desk/traces dir for side files
 
 
 @dataclass

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MakiDevelop/thread-room/schemas/conclusion.schema.json",
+  "title": "Thread Room public conclusion",
+  "type": "object",
+  "required": ["conclusion"],
+  "additionalProperties": false,
+  "properties": {
+    "conclusion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Public text posted to the floor only"
+    },
+    "mentions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "files_claimed": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    }
+  }
+}

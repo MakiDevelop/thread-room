@@ -40,16 +40,18 @@ Write gate (v0 audit only, not hard deny): {pol.write_gate}
 
 ## Output contract (mandatory)
 
-Return **only** a single JSON object (no markdown fence) with this shape:
+Your **final message** must be a single JSON object (no markdown fence) with this shape:
 
 {{"conclusion": "<public reply for the room>", "mentions": [], "files_claimed": []}}
 
 Rules:
 - `conclusion` is the ONLY text that will be posted to the public floor.
 - Keep conclusion under {pol.max_floor_chars} characters.
-- Do not put private reasoning in `conclusion`.
-- `mentions` must be an array of speaker ids (ignored unless host allows agent mentions).
+- Do not put chain-of-thought or tool logs in `conclusion`.
+- `files_claimed` lists paths you believe you edited (may be empty in discuss phase).
+- `mentions` is ignored unless the host enables agent-to-agent mentions.
 - If you cannot answer, still return JSON with a short conclusion stating that.
+- Phase is **{pol.phase}**: in discuss, prefer analysis only; do not modify files unless phase is write.
 
 ## Public thread (floor)
 

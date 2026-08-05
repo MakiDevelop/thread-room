@@ -44,9 +44,4 @@ class MockFailAdapter:
         )
 
 
-def get_adapter(name: str | None) -> MockAdapter | MockFailAdapter:
-    if name in (None, "mock"):
-        return MockAdapter()
-    if name == "mock_fail":
-        return MockFailAdapter()
-    raise KeyError(f"unknown adapter: {name} (P0 supports mock, mock_fail only)")
+# get_adapter lives in registry.py (P1+)

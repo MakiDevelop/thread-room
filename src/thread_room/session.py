@@ -455,6 +455,69 @@ class Session:
         out.write_text(md, encoding="utf-8")
         return out
 
+    def promote(
+        self,
+        *,
+        from_speaker: str,
+        text: str,
+        human: str | None = None,
+    ) -> Message:
+        """Bring desk side content to the public floor (explicit)."""
+        text = (text or "").strip()
+        if not text:
+            raise StoreError("promote text is empty")
+        smap = self.room.speaker_map()
+        if from_speaker not in smap:
+            raise StoreError(f"unknown speaker: {from_speaker}")
+        pol = self.room.policy
+        if len(text) > pol.max_floor_chars:
+            raise StoreError(
+                f"promote text exceeds max_floor_chars ({len(text)} > {pol.max_floor_chars})"
+            )
+        who = human or self.room.human_id()
+        # Human posts promoted content, attributed to desk speaker in meta
+        msg = make_message(
+            self.room,
+            speaker=who,
+            kind="human",
+            type="promote",
+            text=f"[promoted from desk:{from_speaker}]\n{text}",
+            meta={
+                "event": "promote",
+                "from_desk": from_speaker,
+                "visibility": "promoted",
+            },
+            visibility="promoted",
+        )
+        self.store.append(msg)
+        return msg
+
+    def desks_open(self):
+        from thread_room.desks import open_desks
+
+        state = open_desks(self.store.meeting_dir, self.room)
+        self.system(
+            f"Desks opened (tmux session {state.tmux_session}): "
+            + ", ".join(d.speaker for d in state.desks),
+            meta={
+                "event": "desks_open",
+                "tmux_session": state.tmux_session,
+                "speakers": [d.speaker for d in state.desks],
+            },
+        )
+        return state
+
+    def desks_close(self, *, force: bool = False) -> list[str]:
+        from thread_room.desks import close_desks
+
+        report = close_desks(self.store.meeting_dir, force=force)
+        if not self.store.closed:
+            self.system(
+                "Desks closed: " + "; ".join(report),
+                meta={"event": "desks_close", "report": report},
+            )
+        return report
+
     def status_text(self) -> str:
         n = len(self.store.messages)
         pend = ", ".join(p.target for p in self.pending) or "(none)"
@@ -464,10 +527,20 @@ class Session:
             ", ".join(f"{p}→{o}" for p, o in sorted(ost.ratified_map.items()))
             or "(none)"
         )
+        desk_s = "(none)"
+        try:
+            from thread_room.desks import list_desks, load_terminals, session_exists
+
+            st = load_terminals(self.store.meeting_dir)
+            if st:
+                desk_s = f"{st.tmux_session} alive={session_exists(st.tmux_session)}"
+        except Exception:
+            pass
         return (
             f"room={self.room.id} messages={n} closed={closed} "
             f"pending=[{pend}] phase={ost.phase} "
-            f"write_gate={self.room.policy.write_gate} ownership=[{own}]"
+            f"write_gate={self.room.policy.write_gate} ownership=[{own}] "
+            f"desks={desk_s}"
         )
 
 

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from thread_room import __version__
+from thread_room.desks import DeskError
 from thread_room.ownership import parse_assign_specs
 from thread_room.session import Session
 from thread_room.store import StoreError, create_meeting
@@ -45,11 +46,17 @@ def main(argv: list[str] | None = None) -> None:
             _cmd_ratify(rest)
         elif cmd == "phase":
             _cmd_phase(rest)
+        elif cmd == "desks":
+            _cmd_desks(rest)
+        elif cmd == "promote":
+            _cmd_promote(rest)
+        elif cmd == "doctor":
+            _cmd_doctor(rest)
         else:
             print(f"thread-room: unknown command {cmd!r}", file=sys.stderr)
             _print_help()
             sys.exit(2)
-    except (StoreError, FileNotFoundError, ValueError) as e:
+    except (StoreError, DeskError, FileNotFoundError, ValueError) as e:
         print(f"thread-room: error: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -66,18 +73,19 @@ Commands:
   ownership   -d MEETING_DIR --assign owner:path[,path…] [--assign …] [--note TEXT]
   ratify      -d MEETING_DIR [--id ASSIGNMENT_ID]
   phase       -d MEETING_DIR discuss|write
+  desks       open|list|close|doctor -d MEETING_DIR
+  promote     -d MEETING_DIR --from SPEAKER (--text T | --file F | --last-side [N])
   export      -d MEETING_DIR [-o FILE]
-  close       -d MEETING_DIR
+  close       -d MEETING_DIR   (also closes desks if open)
   status      -d MEETING_DIR
+  doctor      -d MEETING_DIR
 
 REPL:
-  say | pump | ownership owner:paths … | ratify | phase discuss|write
-  export | status | thread | close | quit
+  say | pump | ownership … | ratify | phase | desks open|list|close
+  promote from SPEAKER text… | export | status | thread | close | quit
 
-Ownership (P2):
-  Propose disjoint paths, ratify, then phase write.
-  write_gate=ownership_audit → post-hoc violations as system events (not hard deny).
-
+Ownership (P2): propose → ratify → phase write; audit is post-hoc only.
+Desks (P3): tmux one window per agent; side chat not on floor until promote.
 Adapters: mock | codex_cli
 """
     )
@@ -196,12 +204,85 @@ def _cmd_export(argv: list[str]) -> None:
 def _cmd_close(argv: list[str]) -> None:
     path, _ = _meeting_dir(argv)
     sess = Session.open(path)
+    try:
+        for line in sess.desks_close():
+            print(line)
+    except Exception as e:
+        if type(e).__name__ != "DeskError":
+            raise
+        print(f"desks: {e}")
     if sess.store.closed:
         print("already closed")
         return
     sess.close()
     exp = sess.export()
     print(f"closed export={exp}")
+
+
+def _cmd_desks(argv: list[str]) -> None:
+    if not argv or argv[0] not in ("open", "list", "close", "doctor"):
+        raise ValueError("usage: thread-room desks open|list|close|doctor -d DIR")
+    sub = argv[0]
+    path, _ = _meeting_dir(argv[1:])
+    sess = Session.open(path)
+    if sub == "open":
+        state = sess.desks_open()
+        print(f"ok tmux_session={state.tmux_session}")
+        for d in state.desks:
+            print(f"  desk {d.speaker} → {d.target}")
+        print(f"attach: tmux attach -t {state.tmux_session}")
+        return
+    if sub == "list":
+        from thread_room.desks import list_desks
+
+        print(list_desks(path))
+        return
+    if sub == "close":
+        for line in sess.desks_close():
+            print(line)
+        return
+    if sub == "doctor":
+        from thread_room.desks import doctor
+
+        print("\n".join(doctor(path)))
+
+
+def _cmd_promote(argv: list[str]) -> None:
+    p = argparse.ArgumentParser(prog="thread-room promote")
+    p.add_argument("-d", "--dir", required=True, dest="meeting")
+    p.add_argument("--from", required=True, dest="from_speaker")
+    p.add_argument("--text", default=None)
+    p.add_argument("--file", default=None, dest="file_path")
+    p.add_argument(
+        "--last-side",
+        nargs="?",
+        const=1,
+        type=int,
+        default=None,
+        help="promote last N lines from desks/<id>/side-thread.jsonl",
+    )
+    args = p.parse_args(argv)
+    text: str
+    if args.text is not None:
+        text = args.text
+    elif args.file_path:
+        text = Path(args.file_path).read_text(encoding="utf-8")
+    elif args.last_side is not None:
+        from thread_room.desks import read_last_side
+
+        text = read_last_side(Path(args.meeting), args.from_speaker, n=args.last_side)
+    else:
+        raise ValueError("promote requires --text, --file, or --last-side")
+    sess = Session.open(Path(args.meeting))
+    msg = sess.promote(from_speaker=args.from_speaker, text=text)
+    print(f"ok promote id={msg.id} from={args.from_speaker}")
+
+
+def _cmd_doctor(argv: list[str]) -> None:
+    path, _ = _meeting_dir(argv)
+    from thread_room.desks import doctor
+
+    print("\n".join(doctor(path)))
 
 
 def _cmd_status(argv: list[str]) -> None:
@@ -239,8 +320,9 @@ def _cmd_open(argv: list[str]) -> None:
 def _repl_line(sess: Session, line: str) -> None:
     if line in {"help", "?"}:
         print(
-            "say <text> | pump | ownership owner:paths [owner:paths…] | ratify | "
-            "phase discuss|write | export | status | thread | close | quit"
+            "say | pump | ownership owner:paths … | ratify | phase discuss|write | "
+            "desks open|list|close | promote from SPEAKER text… | "
+            "export | status | thread | close | quit"
         )
         return
     if line in {"quit", "exit", "q"}:
@@ -288,6 +370,30 @@ def _repl_line(sess: Session, line: str) -> None:
         ph = line.split(None, 1)[1].strip()
         msg = sess.set_phase(ph)
         print(f"phase={msg.meta.get('phase')}")
+        return
+    if line.startswith("desks "):
+        sub = line.split(None, 1)[1].strip()
+        if sub == "open":
+            st = sess.desks_open()
+            print(f"tmux={st.tmux_session} attach: tmux attach -t {st.tmux_session}")
+        elif sub == "list":
+            from thread_room.desks import list_desks
+
+            print(list_desks(sess.store.meeting_dir))
+        elif sub == "close":
+            for ln in sess.desks_close():
+                print(ln)
+        else:
+            print("desks open|list|close")
+        return
+    if line.startswith("promote "):
+        # promote from SPEAKER text…
+        parts = line.split(None, 3)
+        if len(parts) < 4 or parts[1] != "from":
+            print("usage: promote from SPEAKER text…")
+            return
+        msg = sess.promote(from_speaker=parts[2], text=parts[3])
+        print(f"promoted id={msg.id}")
         return
     if line.startswith("say "):
         msg = sess.say(line[4:])

@@ -3,7 +3,7 @@
 **Multi-agent + human meetings on the filesystem.**  
 One folder, one `thread.jsonl` (like a LINE group chat), pluggable CLI agents.
 
-> **Status:** P2 (`0.3.0`) — ownership propose/ratify/phase + **ownership_audit**.
+> **Status:** P3 (`0.4.0`) — **tmux desks** + promote + doctor.
 
 ## Install
 
@@ -93,8 +93,24 @@ See [docs/TRP.md](docs/TRP.md). Room transcripts are **lossy by design** — not
 | **P0** | ✅ mock, store, pump, export, fail-visible |
 | **P1** | ✅ Codex adapter (`read-only` discuss, schema + last-message) |
 | **P2** | ✅ ownership propose/ratify/phase + audit |
-| **P3** | tmux desks + promote |
+| **P3** | ✅ tmux desks + promote + doctor |
 | **P4** | polish / PyPI |
+
+### Desks (P3)
+
+Requires `tmux` on PATH.
+
+```bash
+thread-room desks open -d ./meetings/c1
+tmux attach -t tr-c1          # session name is tr-<room-id>
+# jump windows: agent side-chat is NOT on floor
+
+thread-room promote -d ./meetings/c1 --from codex --text "Agreed: use option A"
+thread-room desks list -d ./meetings/c1
+thread-room doctor -d ./meetings/c1
+thread-room desks close -d ./meetings/c1
+# close also tears down desks
+```
 
 ## License
 

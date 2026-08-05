@@ -1,31 +1,40 @@
 # Thread Room
 
 **Multi-agent + human meetings on the filesystem.**  
-One folder, one `thread.jsonl` (like a LINE group chat), pluggable CLI agents.
+One folder, one `thread.jsonl` (like a LINE group chat), pluggable CLI agents, optional tmux desks.
 
-> **Status:** P3 (`0.4.0`) — **tmux desks** + promote + doctor.
+[![CI](https://github.com/MakiDevelop/thread-room/actions/workflows/ci.yml/badge.svg)](https://github.com/MakiDevelop/thread-room/actions/workflows/ci.yml)
+
+> **Status:** **0.5.0** (P0–P4) — usable beta. Protocol: [TRP](docs/TRP.md).
 
 ## Install
 
 ```bash
+# from source (recommended while pre-PyPI / latest main)
+git clone https://github.com/MakiDevelop/thread-room.git
 cd thread-room
-python3 -m pip install -e ".[dev]"
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 thread-room --version
+
+# after PyPI publish:
+# pip install thread-room
 ```
 
 ## Quick start
 
 ```bash
-# create a meeting (prints path)
 thread-room new --title "Demo" --cwd . --dir ./meetings --id demo-1
-
-# one-shot flow
 thread-room say -d ./meetings/demo-1 "Hello @mock — introduce yourself"
 thread-room pump -d ./meetings/demo-1
+thread-room validate -d ./meetings/demo-1
 thread-room export -d ./meetings/demo-1
 thread-room close -d ./meetings/demo-1
+```
 
-# or interactive single-writer REPL (recommended)
+Interactive single-writer REPL:
+
+```bash
 thread-room open ./meetings/demo-1
 # room> say Hello @mock
 # room> pump
@@ -39,25 +48,28 @@ thread-room open ./meetings/demo-1
 ```text
 meeting-dir/
   room.yaml
-  thread.jsonl          # public floor (SSOT)
+  thread.jsonl              # public floor (SSOT)
   export.md
-  desks/<agent>/traces/ # full prompt+stdout (private; gitignored pattern)
+  desks/<agent>/traces/     # private full I/O (gitignored pattern)
+  desks/<agent>/side-thread.jsonl   # optional desk log
+  .runtime/terminals.json   # tmux desk map
 ```
 
-## Behavior (council-reviewed)
+## Features
 
-| Feature | Behavior |
-|---------|----------|
-| Human UI | CLI |
-| Speak | `@mention` queues agent turns |
-| Floor output | **conclusion only** (JSON `{"conclusion":…}` or `:::conclusion`) |
-| Parse failure | **fail closed** → `system` event on floor (no last-N fallback) |
-| Writer | Prefer **one** `open` REPL; one-shot cmds also ok if not concurrent |
-| Adapters | `mock`, **`codex` / `codex_cli`** |
-| Codex sandbox | `discuss` → `--sandbox read-only`; `write` → `workspace-write` |
-| Write gate | **`ownership_audit`**: post-hoc system events; does **not** hard-block writes |
+| Area | Behavior |
+|------|----------|
+| Human UI | **CLI** (+ optional tmux desks) |
+| Speak | `@mention` queues agent turns (`mention_only`) |
+| Floor | **conclusion only** — JSON `{"conclusion":…}` or `:::conclusion` |
+| Parse fail | **fail closed** → `system` on floor (no last-N fallback) |
+| Adapters | `mock`, `codex` / `codex_cli` |
+| Codex sandbox | discuss → `read-only`; write → `workspace-write` |
+| Ownership | propose → ratify → `phase write`; **audit** is post-hoc only |
+| Desks | tmux one window per agent; promote to floor explicitly |
+| Validate | `thread-room validate -d DIR` |
 
-### Ownership flow (P2)
+### Ownership
 
 ```bash
 thread-room ownership -d ./meetings/c1 \
@@ -65,53 +77,56 @@ thread-room ownership -d ./meetings/c1 \
   --assign 'claude:docs/'
 thread-room ratify -d ./meetings/c1
 thread-room phase -d ./meetings/c1 write
-# then @agents; if files_claimed / git dirty paths violate map → system ownership_audit
 ```
 
-### Codex meeting example
-
-```bash
-# requires `codex` on PATH (or THREAD_ROOM_CODEX_BIN)
-thread-room new --title "Codex meet" --cwd . --dir ./meetings --id c1 \
-  --agent mock:mock --agent codex:codex_cli
-
-thread-room say -d ./meetings/c1 "@codex In one sentence: what is ownership_audit?"
-thread-room pump -d ./meetings/c1
-thread-room export -d ./meetings/c1
-```
-
-**Governance note (Maki lab):** if you use Claude Code hooks that only allow `council-dispatch` to spawn Codex, you must allowlist `thread-room` or run pump outside that hook — see council C1 decision.
-
-## Protocol
-
-See [docs/TRP.md](docs/TRP.md). Room transcripts are **lossy by design** — not a RED/compliance audit log.
-
-## Roadmap
-
-| Phase | Scope |
-|-------|--------|
-| **P0** | ✅ mock, store, pump, export, fail-visible |
-| **P1** | ✅ Codex adapter (`read-only` discuss, schema + last-message) |
-| **P2** | ✅ ownership propose/ratify/phase + audit |
-| **P3** | ✅ tmux desks + promote + doctor |
-| **P4** | polish / PyPI |
-
-### Desks (P3)
-
-Requires `tmux` on PATH.
+### Desks (needs `tmux`)
 
 ```bash
 thread-room desks open -d ./meetings/c1
-tmux attach -t tr-c1          # session name is tr-<room-id>
-# jump windows: agent side-chat is NOT on floor
-
-thread-room promote -d ./meetings/c1 --from codex --text "Agreed: use option A"
-thread-room desks list -d ./meetings/c1
-thread-room doctor -d ./meetings/c1
+tmux attach -t tr-c1
+thread-room promote -d ./meetings/c1 --from codex --text "Ship option A"
 thread-room desks close -d ./meetings/c1
-# close also tears down desks
 ```
+
+### Codex agent
+
+```bash
+thread-room new --title "Codex meet" --cwd . --dir ./meetings --id c1 \
+  --agent codex:codex_cli
+thread-room say -d ./meetings/c1 "@codex Summarize ownership_audit in one sentence."
+thread-room pump -d ./meetings/c1   # may take a while
+```
+
+Env: `THREAD_ROOM_CODEX_BIN`, `THREAD_ROOM_CODEX_TIMEOUT` (default 900s).
+
+## Protocol (TRP)
+
+See **[docs/TRP.md](docs/TRP.md)**.
+
+Room transcripts are **lossy by design** (conclusions on floor; traces/side-chat on desks).  
+**Do not use as a compliance or RED audit log.**
+
+## Roadmap
+
+| Phase | Status |
+|-------|--------|
+| P0 store / mock / export | ✅ |
+| P1 Codex adapter | ✅ |
+| P2 ownership audit | ✅ |
+| P3 desks + promote | ✅ |
+| P4 polish / packaging / CI | ✅ |
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest -q
+# optional: ruff check src tests
+python -m build && twine check dist/*
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — [LICENSE](LICENSE).

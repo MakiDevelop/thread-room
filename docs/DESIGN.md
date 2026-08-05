@@ -1,8 +1,33 @@
-# Design pointer
+# Design overview
 
-The full design (architecture, ownership, floor/desk, CLI, phases) was drafted in Maki's agent-council session:
+Thread Room is a **host** for multi-agent + human meetings using filesystem SSOT.
 
-- Local: `~/Documents/agent-council/2026-08-05-thread-room-design-review/DESIGN-thread-room.md`
-- Protocol semantics: [TRP.md](./TRP.md)
+## Surfaces
 
-As the public repo grows, stable design sections will be copied or rewritten here so the project is self-contained.
+| Surface | Role |
+|---------|------|
+| **Floor** | `thread.jsonl` — public timeline |
+| **Desk** | Optional tmux interactive pane per agent |
+| **Host** | `thread-room` CLI |
+
+## Phases delivered
+
+| Phase | Deliverable |
+|-------|-------------|
+| P0 | store, mock pump, export, REPL |
+| P1 | Codex adapter, structured conclusion |
+| P2 | ownership propose/ratify/phase, audit |
+| P3 | desks, promote, doctor |
+| P4 | validate, CI, packaging docs |
+
+## Non-goals (still)
+
+- Always-on daemon / auto router
+- Shared model KV cache across vendors
+- Hard write enforcement by default (`ownership_enforced` reserved)
+- Using floor transcript as RED compliance evidence
+
+## Historical design notes
+
+Longer design drafts may live outside this repo (agent-council session).  
+Stable contracts for implementers: [TRP.md](./TRP.md), this file, and the CLI `--help`.

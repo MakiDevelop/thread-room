@@ -52,6 +52,8 @@ def main(argv: list[str] | None = None) -> None:
             _cmd_promote(rest)
         elif cmd == "doctor":
             _cmd_doctor(rest)
+        elif cmd == "validate":
+            _cmd_validate(rest)
         else:
             print(f"thread-room: unknown command {cmd!r}", file=sys.stderr)
             _print_help()
@@ -79,6 +81,7 @@ Commands:
   close       -d MEETING_DIR   (also closes desks if open)
   status      -d MEETING_DIR
   doctor      -d MEETING_DIR
+  validate    -d MEETING_DIR   Check room.yaml + thread.jsonl integrity
 
 REPL:
   say | pump | ownership … | ratify | phase | desks open|list|close
@@ -283,6 +286,22 @@ def _cmd_doctor(argv: list[str]) -> None:
     from thread_room.desks import doctor
 
     print("\n".join(doctor(path)))
+
+
+def _cmd_validate(argv: list[str]) -> None:
+    path, _ = _meeting_dir(argv)
+    from thread_room.validate import validate_meeting
+
+    result = validate_meeting(path)
+    for w in result.warnings:
+        print(f"warning: {w}")
+    for e in result.errors:
+        print(f"error: {e}")
+    if result.ok:
+        print(f"ok: {path.resolve()} is a valid meeting")
+        sys.exit(0)
+    print(f"invalid: {len(result.errors)} error(s)")
+    sys.exit(1)
 
 
 def _cmd_status(argv: list[str]) -> None:

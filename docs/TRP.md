@@ -1,7 +1,7 @@
-# Thread Room Protocol (TRP) v0.1 — Draft
+# Thread Room Protocol (TRP) v0.1
 
-> **Status:** draft for implementers. Semantic contract only.  
-> Adapter CLI matrices, tmux, and host enforcement mechanisms are **not** part of the protocol — they belong in host config.
+> **Status:** implementable v0.1 (shipped with thread-room 0.5.x host).  
+> Semantic contract only. Adapter argv matrices, tmux, and host enforcement are **not** part of TRP.
 
 ## Principles
 

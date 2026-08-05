@@ -1,6 +1,6 @@
 [project]
 name = "thread-room"
-version = "0.5.0"
+version = "0.6.0"
 description = "Multi-agent + human meetings on the filesystem (thread.jsonl)"
 readme = "README.md"
 license = { text = "MIT" }

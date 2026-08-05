@@ -118,14 +118,14 @@ def save_terminals(meeting_dir: Path, state: TerminalsState) -> Path:
 
 def interactive_command(speaker: Speaker) -> list[str]:
     """Command to run inside desk pane (interactive)."""
-    adapter = (speaker.adapter or "mock").lower()
-    if adapter in ("codex", "codex_cli", "codex-cli"):
+    key = (speaker.adapter or speaker.id or "mock").lower().replace("-", "_")
+    if key in ("codex", "codex_cli") or speaker.id == "codex":
         return [os.environ.get("THREAD_ROOM_CODEX_BIN") or "codex"]
-    if adapter in ("claude", "claude_code", "claude-code"):
+    if key in ("claude", "claude_code") or speaker.id == "claude":
         return [os.environ.get("THREAD_ROOM_CLAUDE_BIN") or "claude"]
-    if adapter in ("gemini", "gemini_cli"):
+    if key in ("gemini", "gemini_cli") or speaker.id == "gemini":
         return [os.environ.get("THREAD_ROOM_GEMINI_BIN") or "gemini"]
-    # mock / unknown: shell with banner via bash -lc
+    # mock / unknown: shell with banner
     return []
 
 

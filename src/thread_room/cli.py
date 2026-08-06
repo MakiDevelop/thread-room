@@ -151,12 +151,12 @@ def _interactive_start() -> None:
             state = sess.desks_open()
             print(f"tmux:    {state.tmux_session}")
             print(f"\n  tmux attach -t {state.tmux_session}")
-            print("  (or: tr attach)\n")
+            print("  (or: thr attach)\n")
         except DeskError as e:
             print(f"desks skipped: {e}")
-            print("Continue with: tr open   or   tr say \"@mock hi\"\n")
+            print("Continue with: thr open   or   thr say \"@mock hi\"\n")
     else:
-        print("\nNext: tr open   or   tr say \"@mock hi\" && tr pump\n")
+        print("\nNext: thr open   or   thr say \"@mock hi\" && thr pump\n")
 
     # drop into REPL
     _repl_loop(sess)

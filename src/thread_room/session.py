@@ -175,13 +175,25 @@ class Session:
             # allow explicit human speaker id from config
             if human not in smap:
                 raise StoreError(f"unknown speaker: {human}")
-        mentions = extract_mentions(text)
-        # only keep known agent ids for pump
-        valid = []
-        for m in mentions:
-            sp = smap.get(m)
+        raw_mentions = extract_mentions(text)
+        # Resolve @Name case-insensitively to speaker id (and display_name)
+        valid: list[str] = []
+        unknown: list[str] = []
+        lower_map = {sid.lower(): sid for sid in smap}
+        display_map = {
+            sp.display_name.lower(): sp.id
+            for sp in self.room.speakers
+            if sp.kind == "agent"
+        }
+        for m in raw_mentions:
+            key = m.lower()
+            sid = lower_map.get(key) or display_map.get(key)
+            sp = smap.get(sid) if sid else None
             if sp and sp.kind == "agent" and sp.enabled:
-                valid.append(m)
+                if sp.id not in valid:
+                    valid.append(sp.id)
+            else:
+                unknown.append(m)
         msg = make_message(
             self.room,
             speaker=human,
@@ -200,6 +212,12 @@ class Session:
                     depth=0,
                 )
             )
+        # Stash for CLI to print hints (optional attribute)
+        msg.meta = dict(msg.meta or {})
+        if unknown:
+            msg.meta["unknown_mentions"] = unknown
+        agents = [s.id for s in self.room.speakers if s.kind == "agent" and s.enabled]
+        msg.meta["room_agents"] = agents
         return msg
 
     def pump(self, *, once: bool = False) -> list[Message]:

@@ -346,7 +346,7 @@ def _cmd_say(argv: list[str]) -> None:
     text = " ".join(rest)
     sess = Session.open(path)
     msg = sess.say(text)
-    print(f"ok id={msg.id} mentions={msg.mentions}")
+    _print_say_result(msg)
 
 
 def _cmd_pump(argv: list[str]) -> None:
@@ -618,13 +618,28 @@ def _repl_line(sess: Session, line: str) -> None:
         print(f"promoted {msg.id}")
         return
     if line.startswith("say "):
-        print(f"ok mentions={sess.say(line[4:]).mentions}")
+        _print_say_result(sess.say(line[4:]))
         return
     if line.startswith("@"):
-        print(f"ok mentions={sess.say(line).mentions}")
+        _print_say_result(sess.say(line))
         return
     # bare text → say
-    print(f"ok mentions={sess.say(line).mentions}")
+    _print_say_result(sess.say(line))
+
+
+def _print_say_result(msg) -> None:
+    print(f"ok mentions={msg.mentions}")
+    unknown = (msg.meta or {}).get("unknown_mentions") or []
+    if unknown:
+        agents = (msg.meta or {}).get("room_agents") or []
+        print(
+            f"hint: no match for {unknown} — use lowercase @id; "
+            f"agents in this room: {agents or '(none)'}"
+        )
+    if not msg.mentions and not unknown:
+        agents = (msg.meta or {}).get("room_agents") or []
+        if agents:
+            print(f"hint: no @mention — try e.g. @{agents[0]} … then: pump")
 
 
 if __name__ == "__main__":

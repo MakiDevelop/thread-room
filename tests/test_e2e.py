@@ -4,6 +4,20 @@ from thread_room.session import Session
 from thread_room.store import create_meeting
 
 
+def test_mention_case_insensitive(tmp_path: Path):
+    from thread_room.session import Session
+    from thread_room.store import create_meeting
+
+    meeting = create_meeting(
+        tmp_path, title="Case", cwd=str(tmp_path), agents=[("grok", "mock")]
+    )
+    sess = Session.open(meeting)
+    msg = sess.say("@Grok hello")
+    assert msg.mentions == ["grok"]
+    out = sess.pump()
+    assert any(m.speaker == "grok" for m in out)
+
+
 def test_say_pump_export_close(tmp_path: Path):
     meeting = create_meeting(tmp_path, title="E2E", cwd=str(tmp_path))
     sess = Session.open(meeting)

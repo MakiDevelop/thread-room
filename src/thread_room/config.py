@@ -65,7 +65,7 @@ def resolve_meeting(cli_dir: str | None) -> Path:
     cur = get_current_meeting()
     if cur is None:
         raise FileNotFoundError(
-            "no meeting selected — run: thread-room   (or: tr go \"title\")"
+            "no meeting selected — run: thread-room   (or: thr go \"title\")"
         )
     return cur
 

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Bare `thread-room` interactive wizard: title + agent picker + optional desks
-- `install.sh` → `~/.local/bin/thread-room` and alias `tr`
+- `install.sh` → `~/.local/bin/thread-room` and alias `thr` (not `tr`)
 - Current-meeting pointer (no `-d` for everyday commands)
 - Shortcuts: `go`, `end`, `attach`, `use`, `current`
 

@@ -52,11 +52,11 @@ Example selection: `2 3` or `codex,claude`
 No `cd`, no `.venv`, no `-d` (uses **current** meeting):
 
 ```bash
-tr say "Hello @codex …"
-tr pump
-tr attach                 # tmux → agent desks
-tr promote --from codex --text "結論：採用 A"
-tr end                    # close desks + export + close
+thr say "Hello @codex …"
+thr pump
+thr attach                 # tmux → agent desks
+thr promote --from codex --text "結論：採用 A"
+thr end                    # close desks + export + close
 ```
 
 ### Non-interactive

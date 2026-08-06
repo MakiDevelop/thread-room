@@ -214,7 +214,7 @@ def _slug(title: str) -> str:
 
 
 def _cmd_go(argv: list[str]) -> None:
-    """Non-interactive start: tr go "Title" [--agents 1,2|codex,mock] [--no-desks]"""
+    """Non-interactive start: thr go "Title" [--agents 1,2|codex,mock] [--no-desks]"""
     p = argparse.ArgumentParser(prog="thread-room go")
     p.add_argument("title", nargs="?", default="Meeting")
     p.add_argument("--cwd", default=str(Path.cwd()))
@@ -266,7 +266,7 @@ def _cmd_attach(argv: list[str]) -> None:
     path = _meeting_from_argv(argv)
     st = load_terminals(path)
     if not st or not session_exists(st.tmux_session):
-        raise FileNotFoundError("no live desks; run: tr   or   tr desks open")
+        raise FileNotFoundError("no live desks; run: thread-room   or   thr desks open")
     # exec tmux attach
     import os
 

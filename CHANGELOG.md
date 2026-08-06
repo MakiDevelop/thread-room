@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-08-06
+
+### Fixed
+
+- **Isolation:** install must never touch `claude`/`codex`/`gemini` or system `tr`
+- Short alias is **`thr` only** (removed mistaken `tr` alias that shadowed `/usr/bin/tr`)
+- `install.sh` refuses to overwrite non-thread-room binaries; post-install verification
+
 ## [0.6.0] — 2026-08-05
 
 ### Added

@@ -17,10 +17,25 @@ cd thread-room
 curl -fsSL https://raw.githubusercontent.com/MakiDevelop/thread-room/main/install.sh | bash
 ```
 
-Adds `thread-room` and short alias **`thr`** to `~/.local/bin`  
+Adds **only**:
+
+- `~/.local/bin/thread-room`
+- `~/.local/bin/thr` (short alias)
+
+Isolated venv: `~/.local/share/thread-room/venv`  
 (ensure `export PATH="$HOME/.local/bin:$PATH"`).
 
-> Do **not** use alias name `tr` — that shadows the system `/usr/bin/tr` tool.
+### Isolation (hard rule)
+
+`install.sh` **must not** touch existing agent CLIs or system tools:
+
+| Allowed | Forbidden |
+|---------|-----------|
+| `thread-room`, `thr` | `claude`, `codex`, `gemini`, `agy`, … |
+| own venv under `share/thread-room/` | overwriting anything else in `~/.local/bin` |
+| — | alias name **`tr`** (shadows `/usr/bin/tr`) |
+
+Post-install self-check aborts if isolation is violated.
 
 ## Use
 

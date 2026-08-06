@@ -6,7 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/MakiDevelop/thread-room/main/install.sh | bash
 #
 # After install you should have:
-#   thread-room   (and short alias: tr)
+#   thread-room   (and short alias: thr — NOT "tr", which would shadow /usr/bin/tr)
 # on PATH (typically ~/.local/bin).
 
 set -euo pipefail
@@ -61,7 +61,16 @@ python -m pip install -e "${SRC}" >/dev/null
 
 mkdir -p "${BIN}"
 ln -sfn "${VENV}/bin/thread-room" "${BIN}/thread-room"
-ln -sfn "${VENV}/bin/thread-room" "${BIN}/tr"
+# Use thr, never tr — tr is a standard Unix tool (/usr/bin/tr)
+ln -sfn "${VENV}/bin/thread-room" "${BIN}/thr"
+# Remove mistaken legacy alias if present
+if [[ -L "${BIN}/tr" ]]; then
+  target="$(readlink "${BIN}/tr" 2>/dev/null || true)"
+  if [[ "${target}" == *thread-room* ]]; then
+    rm -f "${BIN}/tr"
+    info "Removed legacy alias ${BIN}/tr (was shadowing /usr/bin/tr)"
+  fi
+fi
 
 # Default meetings root
 MEETINGS="${THREAD_ROOM_MEETINGS:-$HOME/thread-room-meetings}"
@@ -77,7 +86,7 @@ info "Installed thread-room $(${BIN}/thread-room --version 2>/dev/null | awk '{p
 echo
 echo "Commands on PATH:"
 echo "  ${BIN}/thread-room"
-echo "  ${BIN}/tr          # short alias"
+echo "  ${BIN}/thr         # short alias (not 'tr' — that is a system tool)"
 echo "Meetings default dir: ${MEETINGS}"
 echo
 
@@ -92,15 +101,11 @@ fi
 cat <<'EOF'
 Quick use (no cd, no .venv):
 
-  tr go "My meeting"              # create + open desks (tmux)
-  tr go "My meeting" --no-desks   # create only, then: tr open
-  tr say "Hello @codex …"         # uses last meeting (or -d DIR)
-  tr pump
-  tr promote --from codex --text "結論：採用 A"
-  tr end                          # desks close + export + close
-
-  tr attach                       # tmux attach to current desks
-  tr status
-  tr help
+  thread-room                     # interactive start: pick agents
+  thr go "My meeting"             # or short alias thr
+  thr say "Hello @codex …"
+  thr pump
+  thr attach
+  thr end
 
 EOF

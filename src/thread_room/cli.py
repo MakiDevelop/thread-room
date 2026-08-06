@@ -86,15 +86,15 @@ def _print_help() -> None:
         f"""thread-room {__version__} — multi-agent meetings on the filesystem
 
   thread-room              # start wizard: title + pick agents + desks
-  tr                       # same (after install.sh)
+  thr                      # short alias after install.sh (not "tr")
 
 Everyday:
-  tr go "Title"            # non-interactive start (flags below)
-  tr say "Hello @codex"    # uses current meeting (no -d needed)
-  tr pump
-  tr attach                # tmux attach to desks
-  tr promote --from codex --text "結論"
-  tr end                   # desks close + export + close
+  thr go "Title"           # non-interactive start
+  thr say "Hello @codex"   # uses current meeting (no -d needed)
+  thr pump
+  thr attach               # tmux attach to desks
+  thr promote --from codex --text "結論"
+  thr end                  # desks close + export + close
 
 Current meeting: {cur_s}
 

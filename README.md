@@ -17,8 +17,10 @@ cd thread-room
 curl -fsSL https://raw.githubusercontent.com/MakiDevelop/thread-room/main/install.sh | bash
 ```
 
-Adds `thread-room` and short alias **`tr`** to `~/.local/bin`  
+Adds `thread-room` and short alias **`thr`** to `~/.local/bin`  
 (ensure `export PATH="$HOME/.local/bin:$PATH"`).
+
+> Do **not** use alias name `tr` — that shadows the system `/usr/bin/tr` tool.
 
 ## Use
 
@@ -60,8 +62,8 @@ tr end                    # close desks + export + close
 ### Non-interactive
 
 ```bash
-tr go "Sprint review" --agents 2,3
-tr go "Quick" --agents mock --no-desks
+thr go "Sprint review" --agents 2,3
+thr go "Quick" --agents mock --no-desks
 ```
 
 ## Layout

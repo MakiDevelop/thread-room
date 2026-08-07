@@ -115,6 +115,7 @@ def _interactive_start() -> None:
     cwd_path = Path(cwd).expanduser().resolve()
     if not cwd_path.is_dir():
         raise ValueError(f"not a directory: {cwd_path}")
+    _warn_if_broad_cwd(cwd_path)
 
     print("\nAgents — pick numbers (space/comma separated), or names:\n")
     for i, a in enumerate(AGENT_CATALOG, 1):
@@ -168,6 +169,15 @@ def _prompt(label: str, default: str) -> str:
     except EOFError:
         return default
     return raw if raw else default
+
+
+def _warn_if_broad_cwd(cwd: Path) -> None:
+    if cwd == Path.home().resolve():
+        print(
+            "warning: working directory is your home folder; "
+            "choose a repository directory before enabling write-phase agents",
+            file=sys.stderr,
+        )
 
 
 def _parse_agent_selection(sel: str) -> list[tuple[str, str]]:
@@ -227,12 +237,14 @@ def _cmd_go(argv: list[str]) -> None:
     p.add_argument("--id", default=None, dest="room_id")
     args = p.parse_args(argv)
     agents = _parse_agent_selection(args.agents)
+    cwd_path = Path(args.cwd).expanduser().resolve()
+    _warn_if_broad_cwd(cwd_path)
     parent = meetings_root()
     parent.mkdir(parents=True, exist_ok=True)
     path = create_meeting(
         parent,
         title=args.title,
-        cwd=str(Path(args.cwd).expanduser().resolve()),
+        cwd=str(cwd_path),
         room_id=args.room_id or _slug(args.title),
         agents=agents,
     )

@@ -1,4 +1,6 @@
-from thread_room.cli import _parse_agent_selection, _slug
+from pathlib import Path
+
+from thread_room.cli import _parse_agent_selection, _slug, _warn_if_broad_cwd
 
 
 def test_parse_numbers():
@@ -14,3 +16,13 @@ def test_parse_names():
 
 def test_slug():
     assert "hello" in _slug("Hello World!")
+
+
+def test_home_cwd_warning(capsys):
+    _warn_if_broad_cwd(Path.home().resolve())
+    assert "home folder" in capsys.readouterr().err
+
+
+def test_repo_cwd_has_no_warning(tmp_path, capsys):
+    _warn_if_broad_cwd(tmp_path)
+    assert capsys.readouterr().err == ""

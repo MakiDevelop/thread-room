@@ -50,17 +50,22 @@ Then:
 3. **Pick agents** by number or name:
 
 ```text
-  1) Mock      offline test
-  2) Codex     OpenAI Codex CLI
-  3) Claude    Claude Code
-  4) Gemini    Gemini CLI
-  5) Grok      placeholder desk
+  1) Mock      Floor: mock — offline test
+  2) Codex     Floor: live — OpenAI Codex CLI
+  3) Claude    Floor: mock — interactive desk only
+  4) Gemini    Floor: mock — interactive desk only
+  5) Grok      Floor: mock — placeholder desk
 ```
 
 Example selection: `2 3` or `codex,claude`
 
 4. **Open tmux desks?** `Y` / `n`
 5. Drop into the meeting REPL (`room>`)
+
+Only Codex currently has a live headless Floor adapter. Claude and Gemini can
+open interactive desks, but `pump` uses a mock response until their adapters
+are implemented. Thread Room warns when a meeting uses your home folder as its
+working directory; select the target repository before enabling write phase.
 
 ### Everyday after start
 

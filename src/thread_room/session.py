@@ -547,7 +547,7 @@ class Session:
         )
         desk_s = "(none)"
         try:
-            from thread_room.desks import list_desks, load_terminals, session_exists
+            from thread_room.desks import load_terminals, session_exists
 
             st = load_terminals(self.store.meeting_dir)
             if st:

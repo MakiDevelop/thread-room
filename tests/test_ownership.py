@@ -2,14 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from thread_room.models import make_message
 from thread_room.ownership import (
     PathAssignment,
     audit_paths,
     find_overlaps,
     match_owner,
     parse_assign_specs,
-    project_state,
 )
 from thread_room.session import Session
 from thread_room.store import StoreError, create_meeting
@@ -106,7 +104,6 @@ def test_audit_emits_system_on_write_phase(tmp_path: Path, monkeypatch):
 
     # mock claims a file outside ownership
     from thread_room.adapters import mock as mock_mod
-
     from thread_room.adapters.base import AdapterResult
 
     class ClaimBad(mock_mod.MockAdapter):

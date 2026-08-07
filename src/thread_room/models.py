@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import re
+import secrets
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
-import secrets
-import time
 
 TRP_VERSION = "0.1"
 
@@ -19,6 +18,7 @@ MENTION_RE = re.compile(r"@([a-zA-Z0-9_-]{1,64})")
 
 def new_id() -> str:
     return f"{int(time.time() * 1000):x}{secrets.token_hex(8)}"
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")

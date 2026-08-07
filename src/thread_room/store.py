@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from thread_room.models import Message, Policy, RoomConfig, Speaker, TRP_VERSION, now_iso
+from thread_room.models import TRP_VERSION, Message, Policy, RoomConfig, Speaker, now_iso
 
 ROOM_YAML = "room.yaml"
 THREAD_JSONL = "thread.jsonl"
